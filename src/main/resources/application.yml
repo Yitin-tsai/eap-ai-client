@@ -1,0 +1,46 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: eap-ai-client
+
+  ai:
+    # Ollama 本地模型配置 (免費)
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: llama3.1
+          temperature: 0.7
+
+    # Spring AI MCP Client 配置
+    mcp:
+      client:
+        enabled: true
+        name: eap-ai-client
+        version: 1.0.0
+        type: SYNC
+        request-timeout: 60s
+        sse:
+          connections:
+            eap-mcp-server:
+              url: http://localhost:8083/sse
+
+logging:
+  level:
+    com.eap.ai: DEBUG
+    "[org.springframework.ai]": DEBUG
+    "[org.springframework.ai.mcp]": DEBUG
+    "[org.springframework.ai.ollama]": DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

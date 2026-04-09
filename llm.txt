@@ -1,0 +1,51 @@
+# eap-ai-client — LLM Context
+
+> Port 8084 | Context Path: /
+> AI 聊天前端，連接 Ollama LLM + MCP Server，為用戶提供自然語言交易介面。
+> 無 DB、無 Redis、無 RabbitMQ — 純 HTTP + in-memory chat memory。
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| POST /api/chat | 傳送訊息給 LLM，回傳 AI 回應（同步，非 streaming） |
+
+Request: `{ "message": "..." }`
+Response: `{ "success": true, "response": "...", "timestamp": "..." }`
+
+## 架構連線
+
+```
+用戶 → POST /api/chat → AiChatService
+  → ChatClient (Spring AI, Ollama llama3.1)
+  → MCP ToolCallbackProvider (SSE 連線到 eap-mcp:8083)
+  → LLM 決定是否呼叫 MCP tool → 回傳結果
+```
+
+### Ollama LLM 連線
+- Spring AI starter: `spring-ai-starter-model-ollama`
+- Base URL: `http://localhost:11434`
+- Model: `llama3.1`, temperature: `0.7`
+- System prompt: "你是 EAP 電力交易平台助手"（繁體中文，簡潔回覆）
+- Chat memory: `MessageChatMemoryAdvisor`（in-memory，按 conversationId 隔離）
+
+### MCP Server 連線
+- Transport: SSE (Server-Sent Events)
+- URL: `http://localhost:8083/sse`
+- Type: SYNC, request-timeout: 60s
+- 啟動時自動發現所有 MCP tools 並註冊到 ChatClient
+- Fallback: MCP 不可用時，服務仍可啟動但無 tool 能力
+
+### llama3.1 tool-calling workaround
+llama3.1 有時會把 tool call 當作純文字 JSON 輸出（而非走原生 function-calling protocol）。
+`AiChatService.tryParseAndExecuteToolCall()` 會偵測這種情況，手動解析 JSON 並執行對應的 ToolCallback。
+
+## Key Files
+
+| What | Path |
+|------|------|
+| Controller | src/main/java/com/eap/ai/controller/AiChatController.java |
+| Chat Service | src/main/java/com/eap/ai/service/AiChatService.java |
+| MCP Connection | src/main/java/com/eap/ai/service/McpConnectionService.java |
+| CLI Interface | src/main/java/com/eap/ai/cli/ChatCommandLineInterface.java |
+| Config | src/main/resources/application.yml |
